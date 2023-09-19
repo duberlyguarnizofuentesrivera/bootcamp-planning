@@ -1,0 +1,450 @@
+openapi: 3.0.3
+info:
+  title: Client Management
+  description: Client Management Microservice for New Lima Bank
+  version: 1.0.0
+  contact:
+    name: Duberly Guarnizo
+    email: duberlygfr@gmail.com
+    url: duberlyguarnizo.com
+servers:
+  - url: 'http://localhost:8080'
+    description: Local test server
+  - url: 'https://duberlyguarnizo.com/bootcamp'
+    description: Remote live server
+paths:
+  /clients:
+    get:
+      summary: List regular clients with filters
+      description: Get a list of clients (with paging support) that are regular (people) with an opened passive account. Detail of client can be returned using parameters.
+      operationId: getListOfClients
+      parameters:
+        - name: client-type
+          in: query
+          description: Type of client (Regular, Corporativo, Non-Account)
+          schema:
+            type: string
+            enum:
+              - regular_client
+              - corporate_client
+        - name: is-non-account
+          in: query
+          description: Return clients with or without passive accounts.
+          schema:
+            type: boolean
+        - name: client-name
+          in: query
+          description: A name to search clients for. Only applies to Regular Clients.
+          schema:
+            minLength: 2
+            maxLength: 48
+            type: string
+        - name: client-lastname
+          in: query
+          description: A lastname to search clients for. Only applies to Regular Clients.
+          schema:
+            minLength: 2
+            maxLength: 48
+            type: string
+        - name: company-name
+          in: query
+          description: A company name or part of name to search for. Only applies to corporate clients.
+          schema:
+            minLength: 2
+            maxLength: 56
+            type: string
+      responses:
+        '200':
+          description: Successful Operation.
+          content:
+            application/json:
+              schema:
+                type: array
+                oneOf:
+                  - $ref: '#/components/schemas/RegularClientListDto'
+                  - $ref: '#/components/schemas/CorporateClientListDto'
+        '204':
+          description: No content. The query returned an empty list.
+        '400':
+          description: Bad request. At least one of the parameters has invalid value, or collides with other parameters.
+        '404':
+          description: Not found. No clients found with the specified idCard or legalId.
+
+    post:
+      summary: Create a regular client
+      description: Create a new regular client in the system.
+      operationId: createRegularClient
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/RegularClientCreationDto'
+                - $ref: '#/components/schemas/CorporateClientCreationDto'
+      responses:
+        '201':
+          description: Successful Operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegularClientDetailDto'
+
+  /clients/{clientId}:
+    parameters:
+      - name: clientId
+        in: path
+        description: The Id card number of the person or Legal Id number of the company.
+        required: true
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 11
+    get:
+      summary: Get the client by Id Card o Legal Id number
+      description: Get a single client by its legal id or its id card number and the client type.
+      operationId: getSingleClient
+      parameters:
+        - name: client-type
+          in: query
+          description: Type of client (Regular, Corporate, Non-Account)
+          required: true
+          schema:
+            type: string
+            enum:
+              - regular_client
+              - corporate_client
+            default: regular_client
+      responses:
+        '200':
+          description: Successful Operation.
+          content:
+            application/json:
+              schema:
+                type: array
+                oneOf:
+                  - $ref: '#/components/schemas/RegularClientDetailDto'
+                  - $ref: '#/components/schemas/CorporateClientDetailDto'
+        '400':
+          description: Bad request. At least one of the parameters has invalid value, or collides with other parameters.
+        '404':
+          description: Not found. No regular or corporate client found with the specified idCard or legalId.
+    patch:
+      summary: Change details of the specified client
+      description: Replace details of the regular or corporate client. Not modified properties must be passed as null.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/RegularClientCreationDto'
+                - $ref: '#/components/schemas/CorporateClientCreationDto'
+      responses:
+        '200':
+          description: Client successfully modified.
+        '400':
+          description: Bad request. The provided properties or parameters are not correct.
+    delete:
+      summary: Delete a regular or corporate client
+      description: Mark the client as deleted.
+      responses:
+        '200':
+          description: Client successfully marked as deleted.
+        '400':
+          description: Bad request. The provided parameter is not correct.
+        '500':
+          description: Not deleted. There was an error on our part.
+
+  /clients/{legalId}/holders:
+    parameters:
+      - name: legalId
+        in: path
+        description: The Legal Id number of the company.
+        required: true
+        schema:
+          type: string
+          minLength: 11
+          maxLength: 11
+    get:
+      summary: List the holders of a corporation
+      description: Get a list of all holders of a corporation.
+      operationId: getCorporateHolders
+      responses:
+        200:
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  - $ref: '#/components/schemas/PersonListDto'
+        404:
+          description: No company found with the specified legal Id.
+    post:
+      summary: Add a new holder to this company
+      description: Add a single new holder (with no limit) to this company. Holder must be a person.
+      operationId: addCorporateHolder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Person'
+      responses:
+        201:
+          description: New holder added to this company.
+        400:
+          description: The request body or the legal id is malformed
+
+
+  /clients/{legalId}/signatories:
+    parameters:
+      - name: legalId
+        in: path
+        description: The Legal Id number of the company.
+        required: true
+        schema:
+          type: string
+          minLength: 11
+          maxLength: 11
+    get:
+      summary: List the signatories of a corporation
+      description: Get a list of all signatories of a corporation. The list may contain from cero to four signatories.
+      operationId: getCorporateSignatories
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  - $ref: '#/components/schemas/PersonListDto'
+        '204':
+          description: No signatories found for the company with the specified Legal Id.
+        '404':
+          description: No company found with the specified Legal Id.
+    post:
+      summary: Add a new holder to this company
+      description: Add a single new signature (with up to 4) to this company. Signature must be a person.
+      operationId: addCorporateSignatories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Person'
+      responses:
+        201:
+          description: New signature added to this company.
+        400:
+          description: The request body or the legal id is malformed #TODO: add delete holders & signatures
+
+components:
+  schemas:
+    PersonListDto:
+      type: object
+      description: A DTO for cases when private info of a person must not be shared.
+      properties:
+        firstName:
+          type: string
+          example: Juan Manuel
+        lastName:
+          type: string
+          example: Perez Godoy
+        idCard:
+          type: string
+          example: 43558020
+
+    RegularClientCreationDto:
+      description: A DTO containing the most basic information to create a Regular (human) client.
+      type: object
+      properties:
+        person:
+          $ref: '#/components/schemas/Person'
+        nonAccount:
+          type: boolean
+          default: false
+
+    RegularClientListDto:
+      type: object
+      properties:
+        holder:
+          $ref: '#/components/schemas/Person'
+        nonAccount:
+          type: boolean
+
+    RegularClientDetailDto:
+      type: object
+      properties:
+        person:
+          $ref: '#/components/schemas/Person'
+        nonAccount:
+          type: boolean
+        auditingInfo:
+          $ref: '#/components/schemas/AuditingInfo'
+
+    CorporateClientListDto:
+      type: object
+      properties:
+        legalIdNumber:
+          type: string
+          maxLength: 11
+          minLength: 11
+          example: 20586632147
+        legalName:
+          type: string
+          minLength: 4
+          maxLength: 192
+          example: NttData Peru S.A.C.
+        address:
+          type: string
+          minLength: 10
+          maxLength: 192
+          example: 123 street A, my city, my state
+        nonAccount:
+          type: boolean
+
+    CorporateClientDetailDto:
+      type: object
+      properties:
+        corporation:
+          $ref: '#/components/schemas/Corporation'
+        nonAccount:
+          type: boolean
+        holders:
+          description: List of the holders of the company.
+          type: array
+          items:
+            - $ref: '#/components/schemas/PersonListDto'
+        signatories:
+          description: List of signatories of the company.
+          type: array
+          items:
+            - $ref: '#/components/schemas/PersonListDto'
+        auditingInfo:
+          $ref: '#/components/schemas/AuditingInfo'
+
+    CorporateClientCreationDto:
+      description: A DTO containing the most basic information to create a Corporate (company) client.
+      type: object
+      properties:
+        corporation:
+          $ref: '#/components/schemas/Corporation'
+        nonAccount:
+          type: boolean
+        holders:
+          description: List of the holders of the company.
+          type: array
+          items:
+            - $ref: '#/components/schemas/PersonListDto'
+        signatories:
+          description: List of signatories of the company.
+          type: array
+          items:
+            - $ref: '#/components/schemas/PersonListDto'
+
+    Person:
+      description: A human person.
+      type: object
+      required:
+        - firstName
+        - lastName
+        - idCard
+        - birthDate
+        - contactChannel
+      properties:
+        contactChannel:
+          $ref: '#/components/schemas/ContactChannel'
+        firstName:
+          type: string
+          description: The first name (and second name if needed) of the client.
+          example: Juan Manuel
+        lastName:
+          type: string
+          description: The last name (one or many) of the client.
+          example: Perez Godoy
+        idCard:
+          type: string
+          description: The legal Id Card number of the person. Must be 8 characters long.
+          minLength: 8
+          maxLength: 8
+          example: 43558020
+        birthDate:
+          type: string
+          description: The birth date of the person.
+          format: date
+          example: 2023-09-21
+    Corporation:
+      type: object
+      description: A legal business entity with a state-given legal id.
+      required:
+        - contactChannel
+        - legalIdNumber
+        - legalName
+        - legalAddress
+        - dateOfCreation
+      properties:
+        contactChannel:
+          $ref: '#/components/schemas/ContactChannel'
+        legalIdNumber:
+          type: string
+          maxLength: 11
+          minLength: 11
+          example: 20586632147
+        legalName:
+          type: string
+          minLength: 4
+          maxLength: 192
+          example: NttData Peru S.A.C.
+        legalAddress:
+          type: string
+          minLength: 10
+          maxLength: 192
+          example: 123 street A, my city, my state
+        dateOfCreation:
+          type: string
+          format: date
+          description: The date when the company was legally founded.
+    ContactChannel:
+      description: The contact information for a human or company.
+      type: object
+      required:
+        - phone
+        - email
+        - address
+      properties:
+        phone:
+          type: string
+          minLength: 9
+          maxLength: 15 #https://en.wikipedia.org/wiki/E.164
+        phone2:
+          type: string
+          minLength: 9
+          maxLength: 15
+        email:
+          type: string
+          format: email
+        address:
+          type: string
+          minLength: 3
+          maxLength: 128
+    AuditingInfo:
+      description: Auditing data for created entities.
+      type: object
+      properties:
+        createdAt:
+          description: Datetime of the creation (with zone)
+          type: string
+          format: date-time
+          example: 2023-09-21T17:32:28Z
+        createdBy:
+          description: Bank user Id that created the client.
+          type: string
+          example: e58ed763-928c-4155-bee9-fdbaaadc15f3
+        modifiedAt:
+          description: Datetime of the last modification (with zone)
+          type: string
+          format: date-time
+          example: 2023-09-21T17:32:28Z
+        modifiedBy: #TODO: add description fields to all properties
+          description: Bank user Id that made the last modification to the client.
+          type: string
+          example: e58ed763-928c-4155-bee9-fdbaaadc15f3
